@@ -79,6 +79,7 @@ impl Exec {
         docker: &'docker Docker,
         container_id: C,
         opts: &ExecContainerOpts,
+        start_opts: &ExecStartOpts,
     ) -> impl Stream<Item = crate::conn::Result<tty::TtyChunk>> + Unpin + 'docker
     where
         C: AsRef<str>,
@@ -93,6 +94,7 @@ impl Exec {
         // the stream. But for backwards compatability, we have to return the error inside of the
         // stream.
         let body_result = opts.serialize();
+        let start_body_result = start_opts.serialize();
 
         // To not tie the lifetime of `container_id` to the stream, we convert it to an (owned)
         // endpoint outside of the stream.
@@ -115,7 +117,10 @@ impl Exec {
                     docker
                         .stream_post(
                             format!("/exec/{}/start", exec_id),
-                            Payload::Json("{}"),
+                            Payload::Json(
+                                start_body_result
+                                    .map_err(|e| crate::conn::Error::Any(Box::new(e)))?,
+                            ),
                             Headers::none(),
                         )
                         .map_err(|e| crate::conn::Error::Any(Box::new(e))),
@@ -142,10 +147,16 @@ impl Exec {
     api_doc! { Exec => Start
     /// Starts this exec instance returning a multiplexed tty stream.
     |
-    pub fn start(&self) -> impl Stream<Item = crate::conn::Result<tty::TtyChunk>> + '_ {
+    pub fn start(&self, opts: &ExecStartOpts) -> impl Stream<Item = crate::conn::Result<tty::TtyChunk>> + '_ {
         // We must take ownership of the docker reference to not needlessly tie the stream to the
         // lifetime of `self`.
         let docker = &self.docker;
+
+        // To not tie the lifetime of `opts` to the stream, we do the serializing work outside of
+        // the stream. But for backwards compatability, we have to return the error inside of the
+        // stream.
+        let body_result = opts.serialize();
+
         // We convert `self.id` into the (owned) endpoint outside of the stream to not needlessly
         // tie the stream to the lifetime of `self`.
         let endpoint = format!("/exec/{}/start", &self.id);
@@ -153,7 +164,7 @@ impl Exec {
             async move {
                 let stream = Box::pin(
                     docker
-                        .stream_post(endpoint, Payload::Json("{}"), Headers::none())
+                        .stream_post(endpoint, Payload::Json(body_result.map_err(|e| crate::conn::Error::Any(Box::new(e)))?), Headers::none())
                         .map_err(|e| crate::conn::Error::Any(Box::new(e))),
                 );
 
@@ -232,6 +243,20 @@ impl_opts_builder!(json => ExecResize);
 impl ExecResizeOptsBuilder {
     impl_field!(height: u64 => "Height");
     impl_field!(width: u64 => "Width");
+}
+
+impl_opts_builder!(json => ExecStart);
+
+impl ExecStartOptsBuilder {
+    impl_field!(
+        /// Detach from the command.
+        detach: bool => "Detach"
+    );
+
+    impl_field!(
+        /// Allocate a pseudo-TTY.
+        tty: bool => "Tty"
+    );
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

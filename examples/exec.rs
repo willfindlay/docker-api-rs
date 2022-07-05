@@ -1,7 +1,7 @@
 mod common;
 use clap::Parser;
 use common::new_docker;
-use docker_api::Exec;
+use docker_api::{api::ExecStartOpts, Exec};
 
 #[derive(Parser)]
 pub struct Opts {
@@ -48,7 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             println!("{:#?}", exec.inspect().await?);
 
-            let mut stream = exec.start();
+            let mut stream = exec.start(&ExecStartOpts::default());
 
             stream.next().await;
 

@@ -2,6 +2,7 @@
 mod common;
 use clap::Parser;
 use common::{new_docker, print_chunk};
+use docker_api::api::ExecStartOpts;
 use futures::StreamExt;
 use std::path::PathBuf;
 
@@ -226,7 +227,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .attach_stderr(true)
                 .build();
 
-            while let Some(exec_result) = docker.containers().get(&id).exec(&options).next().await {
+            while let Some(exec_result) = docker
+                .containers()
+                .get(&id)
+                .exec(&options, &ExecStartOpts::default())
+                .next()
+                .await
+            {
                 match exec_result {
                     Ok(chunk) => print_chunk(chunk),
                     Err(e) => eprintln!("Error: {}", e),

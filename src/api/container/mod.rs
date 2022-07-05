@@ -14,11 +14,10 @@ use futures_util::{
 use hyper::Body;
 use serde::Deserialize;
 
-use crate::util::url::construct_ep;
 use crate::{
-    api::{Exec, ExecContainerOpts},
+    api::{Exec, ExecContainerOpts, ExecStartOpts},
     conn::{Multiplexer as TtyMultiplexer, Payload, TtyChunk},
-    util::url::{append_query, encoded_pair},
+    util::url::{append_query, construct_ep, encoded_pair},
     Error, Result,
 };
 
@@ -206,8 +205,9 @@ impl Container {
     pub fn exec(
         &self,
         opts: &ExecContainerOpts,
+        start_opts: &ExecStartOpts,
     ) -> impl Stream<Item = crate::conn::Result<TtyChunk>> + Unpin + '_ {
-        Exec::create_and_start(&self.docker, &self.id, opts)
+        Exec::create_and_start(&self.docker, &self.id, opts, start_opts)
     }}
 
     api_doc! { Container => Archive
